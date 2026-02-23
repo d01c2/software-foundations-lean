@@ -1,10 +1,65 @@
--- Basics: Functional Programming in Coq
---
--- https://softwarefoundations.cis.upenn.edu/lf-current/Basics.html
+/-!
+# Basics: Functional Programming in Lean
 
+Ported from Software Foundations (Logical Foundations)
+<https://softwarefoundations.cis.upenn.edu/lf-current/Basics.html>
+-/
+
+/-!
+## Introduction
+
+The _functional style_ of programming is founded on simple, everyday
+mathematical intuitions: If a procedure or method has no side effects,
+then all we need to understand about it is how it maps inputs to outputs
+-- that is, we can think of it as just a concrete method for computing a
+mathematical function.
+
+The other sense in which functional programming is "functional" is that
+it emphasizes the use of functions as _first-class_ values -- values that
+can be passed as arguments to other functions, returned as results,
+included in data structures, etc.
+
+Other common features of functional languages include _algebraic data
+types_ and _pattern matching_, which make it easy to construct and
+manipulate rich data structures, and _polymorphic type systems_ supporting
+abstraction and code reuse. Lean offers all of these features.
+
+The first half of this chapter introduces some key elements of Lean's
+functional programming language. The second half introduces some basic
+_tactics_ that can be used to prove properties of programs.
+
+**A note on proof style:** Lean encourages a mixed style where simple
+proofs are written as _terms_ (direct expressions) and tactics are
+reserved for more complex reasoning. We'll see both styles throughout
+this chapter.
+-/
+
+-- =====================================================================
 -- # Data and Functions
+-- =====================================================================
+
+-- ## Enumerated Types
+
+/-!
+Lean ships with a rich set of built-in types (`Bool`, `Nat`, `String`,
+`List`, etc.) baked into the compiler for performance. However, Lean also
+provides the same powerful `inductive` mechanism for defining new data
+types from scratch. To illustrate how this works, in
+this course we will often re-define types ourselves rather than relying
+on the standard library.
+-/
 
 -- ## Days of the Week
+
+/-!
+To see how the datatype definition mechanism works, let's start with a
+very simple example. The following declaration tells Lean that we are
+defining a set of data values -- a _type_.
+
+Lean can infer `: Type`, but we write it explicitly here for clarity.
+In subsequent definitions we will omit it.
+-/
+
 inductive Day : Type where
   | monday
   | tuesday
@@ -14,19 +69,15 @@ inductive Day : Type where
   | saturday
   | sunday
 
-def next_working_day (day : Day) : Day :=
-  match day with
-  | Day.monday    => Day.tuesday
-  | Day.tuesday   => Day.wednesday
-  | Day.wednesday => Day.thursday
-  | Day.thursday  => Day.friday
-  | Day.friday    => Day.monday
-  | Day.saturday  => Day.monday
-  | Day.sunday    => Day.monday
+/-!
+The new type is called `Day`, and its members are `monday`, `tuesday`,
+etc. Having defined `Day`, we can write functions that operate on days.
 
--- NOTE: You can skip the name of the type before the constructors
--- when lean can infer it.
-def next_working_day' (day : Day) : Day :=
+When Lean can infer the type from context, we can use _dot notation_:
+`.monday` instead of `Day.monday`. This is idiomatic Lean.
+-/
+
+def nextWorkingDay (day : Day) : Day :=
   match day with
   | .monday    => .tuesday
   | .tuesday   => .wednesday
@@ -36,15 +87,23 @@ def next_working_day' (day : Day) : Day :=
   | .saturday  => .monday
   | .sunday    => .monday
 
-#eval next_working_day .friday -- Day.monday
-#eval next_working_day (next_working_day .saturday) -- Day.tuesday
+-- We can use `#eval` to evaluate expressions:
+#eval nextWorkingDay .friday                       -- Day.monday
+#eval nextWorkingDay (nextWorkingDay .saturday)  -- Day.tuesday
 
-example : next_working_day (next_working_day .saturday) = .tuesday := rfl
+-- And we can record expected results as `example` assertions.
+-- The proof term `rfl` checks that both sides are definitionally equal.
+example : nextWorkingDay (nextWorkingDay .saturday) = .tuesday := rfl
 
 -- ## Booleans
--- NOTE: Unlike in Coq, Lean4 does have a built-in `Bool` type. So we will
--- define `MyBool` instead of `Bool` to avoid confusion with the built-in type.
-inductive MyBool : Type where
+
+/-!
+Lean has a built-in `Bool` type with constructors `true` and `false`.
+To follow the book's spirit of building everything from scratch, we
+define `MyBool` here. Later we'll switch to the built-in `Bool`.
+-/
+
+inductive MyBool where
   | true
   | false
 
@@ -53,78 +112,87 @@ def negb (b : MyBool) : MyBool :=
   | .true => .false
   | .false => .true
 
-def andb (b1 : MyBool) (b2 : MyBool) : MyBool :=
+def andb (b1 b2 : MyBool) : MyBool :=
   match b1 with
   | .true => b2
   | .false => .false
 
-def orb (b1 : MyBool) (b2 : MyBool) : MyBool :=
+def orb (b1 b2 : MyBool) : MyBool :=
   match b1 with
   | .true => .true
   | .false => b2
 
-example : orb .true  .false = .true := rfl
+-- Truth table for `orb`:
+example : orb .true  .false = .true  := rfl
 example : orb .false .false = .false := rfl
-example : orb .false .true  = .true := rfl
-example : orb .true  .true  = .true := rfl
+example : orb .false .true  = .true  := rfl
+example : orb .true  .true  = .true  := rfl
 
+-- We introduce infix notation. The number is the binding power
+-- (precedence). We use `my&&`/`my||` to avoid clash with built-in
+-- `&&`/`||`.
 infixl:60 " my&& " => andb
 infixl:55 " my|| " => orb
 
 example : .false my|| .false my|| .true = .true := rfl
 
--- Unlike in Coq, Lean4 does not treat first clause constructors as a truthy
--- value. So we need to define our own coercion from `MyBool` to `Bool` to
--- allow using `if` expressions with `MyBool` values.
+/-!
+Lean's `if`-`then`-`else` requires the condition to be `Bool` (or more
+precisely, `Decidable`). Since `MyBool` isn't the built-in `Bool`, we
+need to define a coercion. (If you don't know what a typeclass is yet,
+just skip this.)
+-/
+
 @[coe]
 def MyBool.toBool (b : MyBool) : Bool :=
   match b with
-  | .true => True
-  | .false => False
--- Typeclass for coercion from `MyBool` to `Bool`. If you don't know what a type
--- class is, just skip it for now.
+  | .true => Bool.true
+  | .false => Bool.false
+
 instance : Coe MyBool Bool where coe := MyBool.toBool
 
-def negb' (b : MyBool) : MyBool :=
-  if b then .false
-  else .true
+def negb' (b : MyBool) : MyBool := if b then .false else .true
+def andb' (b1 b2 : MyBool) : MyBool := if b1 then b2 else .false
+def orb'  (b1 b2 : MyBool) : MyBool := if b1 then .true else b2
 
-def andb' (b1 : MyBool) (b2 : MyBool) : MyBool :=
-  if b1 then b2
-  else .false
-
-def orb' (b1 : MyBool) (b2 : MyBool) : MyBool :=
-  if b1 then .true
-  else b2
-
-inductive BW : Type where
+inductive BW where
   | black
   | white
 
--- Unlike the original software foundations book,
--- let's not abuse the `if` expression as a binary pattern match construct.
-def invert (x: BW) : BW :=
+def invert (x : BW) : BW :=
   match x with
   | .black => .white
   | .white => .black
 
-#eval invert .black -- BW.white
-#eval invert .white -- BW.black
+#eval invert .black  -- BW.white
+#eval invert .white  -- BW.black
 
--- ### Exercise: 1 star, standard (nandb)
--- TODO: Replace `sorry` with your definitions.
+/-!
+#### Exercise: 1 star, standard (nandb)
+
+Remove `sorry` and complete the definition of `nandb`; then make sure
+the `example` assertions pass. The function should return `.true` if
+either or both of its inputs are `.false`.
+-/
+
 def nandb (b1 b2 : MyBool) : MyBool :=
   /- REPLACE THIS LINE WITH YOUR DEFINITION -/ sorry
-example : (nandb .true .false) = true :=
+example : nandb .true .false = .true :=
   /- FILL IN HERE -/ sorry
-example : (nandb .false .false) = true :=
+example : nandb .false .false = .true :=
   /- FILL IN HERE -/ sorry
-example : (nandb .false .true) = true :=
+example : nandb .false .true = .true :=
   /- FILL IN HERE -/ sorry
-example : (nandb .true .true) = false :=
+example : nandb .true .true = .false :=
   /- FILL IN HERE -/ sorry
 
--- ### Exercise: 1 star, standard (andb3)
+/-!
+#### Exercise: 1 star, standard (andb3)
+
+This function should return `true` when all of its inputs are `true`,
+and `false` otherwise.
+-/
+
 def andb3 (b1 b2 b3 : MyBool) : MyBool :=
   /- REPLACE THIS LINE WITH YOUR DEFINITION -/ sorry
 example : andb3 .true .true .true = .true :=
@@ -136,41 +204,61 @@ example : andb3 .true .false .true = .false :=
 example : andb3 .true .true .false = .false :=
   /- FILL IN HERE -/ sorry
 
--- NOTE: We'll use lean's built-in `Bool` instead of `MyBool`
--- for the rest of the file.
+-- From here on, we use Lean's built-in `Bool`.
 
 -- ## Types
-#check true -- Bool.true : Bool
 
+-- Every expression in Lean has a type. `#check` prints it.
+#check true                     -- Bool
 #check (true : Bool)
 #check (not true : Bool)
-#check (not : Bool → Bool)
+#check (not : Bool → Bool)      -- function type: Bool → Bool
 
 -- ## New Types from Old
-inductive RGB : Type where
+
+/-!
+Here is a more interesting type definition where one constructor takes
+an argument:
+-/
+
+inductive RGB where
   | red
   | green
   | blue
-inductive Color : Type where
+
+inductive Color where
   | black
   | white
   | primary (p : RGB)
 
+/-!
+An `inductive` definition introduces a set of _constructors_ and groups
+them into a named type. Constructor expressions are formed by applying a
+constructor to the right number and types of arguments:
+- `.red`, `.green`, `.blue` belong to `RGB`
+- `.black`, `.white` belong to `Color`
+- `.primary p` belongs to `Color` when `p : RGB`
+-/
+
 def monochrome (c : Color) : Bool :=
   match c with
-  | .black => true
-  | .white => true
+  | .black     => true
+  | .white     => true
   | .primary _ => false
 
-def isred (c : Color) : Bool :=
+-- Patterns can match on nested constructors:
+def isRed (c : Color) : Bool :=
   match c with
-  | .black => false
-  | .white => false
   | .primary .red => true
-  | .primary _ => false
+  | _             => false
 
--- ## Modules
--- In Lean, we use `namespace` to achieve a similar effect to Coq's `Module`.
+-- ## Namespaces
+
+/-!
+Lean's `namespace`/`end` scopes definitions. Names inside are accessed
+as `Namespace.name` from outside.
+-/
+
 namespace Playground
   def foo : RGB := .blue
 end Playground
@@ -181,98 +269,129 @@ def foo : Bool := true
 #check (foo : Bool)
 
 -- ## Tuples
+
 namespace TuplePlayground
-  inductive Bit : Type where
+  inductive Bit where
     | b1
     | b0
-  inductive Nybble : Type where
+
+  inductive Nybble where
     | bits (d0 d1 d2 d3 : Bit)
 
   #check (Nybble.bits .b1 .b0 .b1 .b0 : Nybble)
 
-  def all_zero (nb : Nybble) : Bool :=
+  def allZero (nb : Nybble) : Bool :=
     match nb with
     | .bits .b0 .b0 .b0 .b0 => true
-    | .bits _ _ _ _ => false
+    | .bits  _   _   _   _  => false
 
-  #eval all_zero (Nybble.bits .b1 .b0 .b1 .b0) -- false
-  #eval all_zero (Nybble.bits .b0 .b0 .b0 .b0) -- true
+  #eval allZero (Nybble.bits .b1 .b0 .b1 .b0)  -- false
+  #eval allZero (Nybble.bits .b0 .b0 .b0 .b0)  -- true
 end TuplePlayground
 
 -- ## Numbers
--- NOTE: Lean has a built-in `Nat` type. We will define `NatPlayground.Nat` to
--- follow the book's spirit of building everything from scratch.
+
+/-!
+Lean has a built-in `Nat` type, but we define `NatPlayground.Nat` here
+to see how it works from scratch.
+
+Natural numbers use a _unary_ (base 1) representation: `zero` for 0, and
+`succ n` for the successor of `n`.
+-/
+
 namespace NatPlayground
-  inductive Nat : Type where
+  inductive Nat where
     | zero
     | succ (n : Nat)
 
-  inductive OtherNat : Type where
+  -- A different encoding — names are arbitrary:
+  inductive OtherNat where
     | stop
     | tick (n : OtherNat)
 
   def pred (n : Nat) : Nat :=
     match n with
-    | .zero => .zero
+    | .zero   => .zero
     | .succ n' => n'
 end NatPlayground
 
-#check Nat.succ (.succ (.succ (.succ .zero))) -- Nat.zero.succ.succ.succ.succ : Nat
--- NOTE: Lean treats `n.succ` as a `Nat.succ n`
-#check Nat.zero.succ.succ.succ.succ -- Nat.zero.succ.succ.succ.succ : Nat
+-- Lean prints natural numbers in decimal by default:
+#check Nat.succ (.succ (.succ (.succ .zero)))  -- 4 : Nat
+-- Dot notation: `n.succ` is `Nat.succ n`
+#check Nat.zero.succ.succ.succ.succ            -- 4 : Nat
 
-def minustwo (n : Nat) : Nat :=
+def minusTwo (n : Nat) : Nat :=
   match n with
-  | .zero => .zero
-  | .succ .zero => .zero
+  | 0          => 0
+  | 1          => 0
   | .succ (.succ n') => n'
 
-#eval minustwo 4 -- 2
+#eval minusTwo 4  -- 2
+
+/-!
+`Nat.succ` has type `Nat → Nat`, just like `Nat.pred` and `minusTwo`. But
+there is a fundamental difference: `Nat.pred` and `minusTwo` are defined
+by _computation rules_, while `Nat.succ` is just a constructor — it
+doesn't compute anything, it's a way of writing down numbers.
+-/
 
 #check (Nat.succ : Nat → Nat)
 #check (Nat.pred : Nat → Nat)
-#check (minustwo : Nat → Nat)
+#check (minusTwo : Nat → Nat)
+
+/-!
+For most interesting computations involving numbers, we also need
+recursion. In Lean, recursive functions are defined with the same `def`
+keyword — Lean automatically checks termination.
+-/
 
 def even (n : Nat) : Bool :=
   match n with
-  | .zero => true
-  | .succ .zero => false
+  | 0          => true
+  | 1          => false
   | .succ (.succ n') => even n'
 
-def odd (n : Nat) : Bool :=
-  not (even n)
+def odd (n : Nat) : Bool := not (even n)
 
-example : odd 1 = true := rfl
+example : odd 1 = true  := rfl
 example : odd 4 = false := rfl
 
 namespace NatPlayground2
-  def plus (n : Nat) (m : Nat) : Nat :=
+  def plus (n m : Nat) : Nat :=
     match n with
-    | .zero => m
+    | .zero   => m
     | .succ n' => .succ (plus n' m)
 
-  #eval plus 3 2 -- 5
+  #eval plus 3 2  -- 5
 
+  -- If two or more arguments have the same type, they can be grouped:
   def mult (n m : Nat) : Nat :=
     match n with
-    | .zero => .zero
+    | .zero    => .zero
     | .succ n' => plus m (mult n' m)
 
   example : mult 3 3 = 9 := rfl
 
+  -- We can match two expressions at once:
   def minus (n m : Nat) : Nat :=
     match n, m with
-    | .zero, _ => .zero
-    | .succ _, .zero => n
+    | .zero,    _        => .zero
+    | .succ _,  .zero    => n
     | .succ n', .succ m' => minus n' m'
 end NatPlayground2
 
 def exp (base power : Nat) : Nat :=
   match power with
-  | .zero => .succ .zero
+  | .zero   => .succ .zero
   | .succ p => Nat.mul base (exp base p)
 
--- ### Exercise: 1 star, standard (factorial)
+/-!
+#### Exercise: 1 star, standard (factorial)
+
+    factorial(0)  =  1
+    factorial(n)  =  n * factorial(n-1)     (if n>0)
+-/
+
 def factorial (n : Nat) : Nat :=
   /- REPLACE THIS LINE WITH YOUR DEFINITION -/ sorry
 example : factorial 3 = 6 :=
@@ -280,33 +399,34 @@ example : factorial 3 = 6 :=
 example : factorial 5 = Nat.mul 10 12 :=
   /- FILL IN HERE -/ sorry
 
+-- Custom infix operators to avoid clashing with Lean's built-in `+`, `-`, `*`:
 infixl:65 " my+ " => Nat.add
 infixl:65 " my- " => Nat.sub
 infixl:70 " my* " => Nat.mul
 
 #check (((0 my+ 1) my+ 1) : Nat)
 
+/-!
+Even testing equality is user-definable. Here is `eqb` that tests
+natural numbers for equality, yielding a `Bool`:
+-/
+
 def eqb (n m : Nat) : Bool :=
-  match n with
-  | .zero =>
-    match m with
-    | .zero => true
-    | .succ _ => false
-  | .succ n' =>
-    match m with
-    | .zero => false
-    | .succ m' => eqb n' m'
+  match n, m with
+  | .zero,    .zero    => true
+  | .zero,    .succ _  => false
+  | .succ _,  .zero    => false
+  | .succ n', .succ m' => eqb n' m'
 
+-- `leb` tests whether its first argument is ≤ its second:
 def leb (n m : Nat) : Bool :=
-  match n with
-  | .zero => true
-  | .succ n' =>
-    match m with
-    | .zero => false
-    | .succ m' => leb n' m'
+  match n, m with
+  | .zero,    _        => true
+  | .succ _,  .zero    => false
+  | .succ n', .succ m' => leb n' m'
 
-example : leb 2 2 = true := rfl
-example : leb 2 4 = true := rfl
+example : leb 2 2 = true  := rfl
+example : leb 2 4 = true  := rfl
 example : leb 4 2 = false := rfl
 
 infix:50 " =? " => eqb
@@ -314,7 +434,18 @@ infix:50 " <=? " => leb
 
 example : (4 <=? 2) = false := rfl
 
--- ### Exercise: 1 star, standard (ltb)
+/-!
+We now have two symbols that both look like equality: `=` and `=?`.
+`x = y` is a logical _proposition_ that we can prove, while `x =? y`
+is a boolean _expression_ whose value we can compute.
+-/
+
+/-!
+#### Exercise: 1 star, standard (ltb)
+
+Define `ltb` in terms of previously defined functions.
+-/
+
 def ltb (n m : Nat) : Bool :=
   /- REPLACE THIS LINE WITH YOUR DEFINITION -/ sorry
 
@@ -327,189 +458,292 @@ example : ltb 2 4 = true :=
 example : ltb 4 2 = false :=
   /- FILL IN HERE -/ sorry
 
+-- =====================================================================
 -- # Proof by Simplification
-theorem zero_add : ∀ n : Nat, 0 + n = n := by
-  intro n
-  simp
+-- =====================================================================
 
-theorem zero_add'': ∀ n : Nat, 0 + n = n := by
-  intro m
-  simp
+/-!
+Each `example` so far used `rfl` (reflexivity) — both sides of the
+equation evaluated to the same thing. The same approach works for more
+general theorems.
 
-theorem add_one : ∀ n : Nat, n + 1 = Nat.succ n := by
-  intro n
-  simp
+In Lean, there are two main ways to write proofs:
 
-theorem zero_mul : ∀ n : Nat, 0 * n = 0 := by
-  intros n
-  simp
+1. **Term-mode** — the proof is a direct expression (like `rfl`, or
+   `fun x => ...`). Lean is a dependently-typed language, so proofs _are_
+   terms.
+2. **Tactic-mode** — introduced with `by`, you give step-by-step
+   instructions. Useful for complex proofs.
 
+Idiomatic Lean uses term-mode for simple proofs and tactics when reasoning
+gets complex.
+-/
+
+-- Term-mode: `rfl` is a term of type `a = a`.
+example : 1 + 1 = 2 := rfl
+
+/-!
+Lean's `Nat.add` is defined by recursion on the _second_ argument:
+
+    n + 0     = n            (by definition)
+    n + (m+1) = (n + m) + 1  (by definition)
+
+So `n + 0 = n` holds by `rfl`, but `0 + n = n` does _not_ — it requires
+the `simp` tactic. `Nat.mul` recurses on the second argument similarly.
+-/
+
+-- `0 + n = n` is NOT definitional, so `rfl` won't work; use `simp`:
+theorem zero_add (n : Nat) : 0 + n = n := by simp
+
+-- `n + 1 = succ n` IS definitional:
+theorem add_one (n : Nat) : n + 1 = Nat.succ n := rfl
+
+-- `0 * n = 0` is not definitional either:
+theorem zero_mul (n : Nat) : 0 * n = 0 := by simp
+
+-- =====================================================================
 -- # Proof by Rewriting
-theorem plus_id_example : ∀ n m : Nat, n = m → n + n = m + m := by
-  -- move both quantifiers into the context
-  intro n m
-  -- move the hypothesis into the context
-  intro h
-  -- rewrite the goal using the hypothesis
-  rewrite [h]
-  rfl
+-- =====================================================================
 
--- ### Exercise: 1 star, standard (plus_id_exercise)
+/-!
+The following theorem talks about a specialized property that only holds
+when `n = m`. The arrow `→` is pronounced "implies."
+-/
+
+-- Term-mode: `h ▸ rfl` substitutes using `h`, then checks reflexivity.
+-- The `▸` operator is one of Lean's key tools for rewriting in term mode.
+theorem plus_id_example (n m : Nat) (h : n = m) : n + n = m + m :=
+  h ▸ rfl
+
+-- Same proof in tactic-mode with `rw` (short for "rewrite"):
+theorem plus_id_example' (n m : Nat) (h : n = m) : n + n = m + m := by
+  rw [h]
+
+/-!
+`rw [h]` rewrites left-to-right. `rw [← h]` rewrites right-to-left
+(type `←` as `\l` or `\leftarrow`). After rewriting, `rw` automatically
+closes the goal with `rfl` if both sides become definitionally equal.
+-/
+
+/-!
+#### Exercise: 1 star, standard (plus_id_exercise)
+
+Note: the theorem has _two_ hypotheses — `n = m` and `m = o`.
+-/
+
 theorem plus_id_exercise : ∀ n m o : Nat, n = m → m = o → n + m = m + o := by
   /- FILL IN HERE -/ sorry
 
-#check Nat.mul_zero -- Nat.mul_zero (n : Nat) : n * 0 = 0
-#check Nat.mul_succ -- Nat.mul_succ (n m : Nat) : n * m.succ = n * m + n
+-- We can rewrite using previously proved theorems, not just hypotheses:
+#check Nat.mul_zero  -- n * 0 = 0
+#check Nat.mul_succ  -- n * m.succ = n * m + n
 
-theorem mul_zero_add_mul_zero_eq_zero : ∀ p q : Nat, (p * 0) + (q * 0) = 0 := by
-  intro p q
-  rewrite [Nat.mul_zero]
-  rewrite [Nat.mul_zero]
-  rfl
+theorem mul_zero_add_mul_zero_eq_zero (p q : Nat) : (p * 0) + (q * 0) = 0 := by
+  rw [Nat.mul_zero, Nat.mul_zero]
 
--- ### Exercise: 1 star, standard (mult_n_1)
+/-!
+#### Exercise: 1 star, standard (mult_n_1)
+
+Use `Nat.mul_succ` and `Nat.mul_zero` (or `rw`/`simp`).
+-/
+
 theorem mul_one : ∀ p : Nat, p * 1 = p := by
   /- FILL IN HERE -/ sorry
 
+-- =====================================================================
 -- # Proof by Case Analysis
-theorem add_one_neq_zero_firsttry : ∀ n : Nat, (n + 1 =? 0) = false := by
-  intro n
-  -- simp: does nothing!
-  sorry
+-- =====================================================================
 
-theorem add_one_neq_zero : ∀ n : Nat, (n + 1 =? 0) = false := by
-  intro n
-  cases n
-  rfl
-  rfl
+/-!
+Not everything can be proved by simplification and rewriting. When an
+unknown value blocks simplification (because the function definition
+matches on it), we need _case analysis_.
 
-theorem not_involutive : ∀ b : Bool, not (not b) = b := by
-  intro b
+For example, `eqb` and `+` both match on their first argument. With an
+unknown `n`, `(n + 1 =? 0)` cannot simplify. We need to consider the
+cases `n = 0` and `n = succ n'` separately.
+
+The `cases` tactic does exactly this:
+-/
+
+-- Using `cases` with the `<;>` combinator (applies tactic to all goals):
+theorem add_one_neq_zero (n : Nat) : (n + 1 =? 0) = false := by
+  cases n <;> rfl
+
+/-!
+`cases` generates one subgoal per constructor. In each subgoal, `n` is
+replaced by the constructor, enabling further simplification.
+
+For types with finitely many values (like `Bool`), Lean offers an
+alternative: the `decide` tactic, which exhaustively checks all cases
+automatically:
+-/
+
+-- Term-mode proof using pattern matching:
+theorem not_involutive (b : Bool) : not (not b) = b :=
+  match b with
+  | true  => rfl
+  | false => rfl
+
+-- Tactic proof with `cases` + `<;>` (applies rfl to all goals):
+theorem not_involutive' (b : Bool) : not (not b) = b := by
+  cases b <;> rfl
+
+-- `decide` exhaustively checks all cases. It needs a closed proposition
+-- (no free variables), so we use the `∀` form:
+theorem not_involutive'' : ∀ b : Bool, not (not b) = b := by decide
+
+/-!
+**Lean note on `decide`:** `decide` works for any `Decidable` proposition
+over finite types. It's very convenient for `Bool` theorems but cannot
+handle universally quantified statements over infinite types like `Nat`
+— for those, you need `cases` or `induction`.
+
+The `·` (middle dot) is Lean's bullet marker for focusing on subgoals.
+You can also use `next =>` or the `with` syntax:
+-/
+
+theorem and_commutative (b c : Bool) : and b c = and c b := by
   cases b
-  . rfl
-  . rfl
+  · cases c <;> rfl    -- b = false: both subcases by rfl
+  · cases c <;> rfl    -- b = true:  both subcases by rfl
 
-theorem and_commutative : ∀ b c : Bool, and b c = and c b := by
-  intro b c
-  cases b
-  . cases c
-    . rfl
-    . rfl
-  . cases c
-    . rfl
-    . rfl
-
-theorem and_commutative' : ∀ b c : Bool, and b c = and c b := by
-  intro b c
-  cases b with
-  | true => cases c with
-    | true => rfl
-    | false => rfl
-  | false => cases c with
-    | true => rfl
-    | false => rfl
-
-theorem and_commutative''' : ∀ b c : Bool, and b c = and c b := by
-  intro b c
+-- Or simply:
+theorem and_commutative' (b c : Bool) : and b c = and c b := by
   cases b <;> cases c <;> rfl
 
-theorem and3_exchange : ∀ b c d : Bool, and (and b c) d = and (and b d) c := by
-  intro b c d
-  cases b
-  . cases c
-    . cases d
-      . rfl
-      . rfl
-    . cases d
-      . rfl
-      . rfl
-  . cases c
-    . cases d
-      . rfl
-      . rfl
-    . cases d
-      . rfl
-      . rfl
+-- Or by exhaustive decision (`∀` form so `decide` sees a closed proposition):
+theorem and_commutative'' : ∀ b c : Bool, and b c = and c b := by decide
 
-theorem and3_exchange' : ∀ b c d : Bool, and (and b c) d = and (and b d) c := by
-  intro b c d
+theorem and3_exchange (b c d : Bool) :
+    and (and b c) d = and (and b d) c := by
   cases b <;> cases c <;> cases d <;> rfl
 
--- ### Exercise: 2 stars, standard (andb_true_elim2)
+/-!
+#### Exercise: 2 stars, standard (andb_true_elim2)
+
+Hint: You will need to `cases` both booleans. Simplifying hypotheses
+(with `simp at h`) before the second `cases` can help.
+-/
+
 theorem and_true_elim2 : ∀ b c : Bool, and b c = true → c = true := by
   /- FILL IN HERE -/ sorry
 
--- ### Exercise: 1 star, standard (zero_nbeq_plus_1)
+/-!
+#### Exercise: 1 star, standard (zero_nbeq_plus_1)
+-/
+
 theorem zero_nbeq_add_one : ∀ n : Nat, (0 =? n + 1) = false := by
   /- FILL IN HERE -/ sorry
 
--- ## More on Notation (Optional)
--- NOTE: We'll skip `Exercise: 2 stars, standard, optional (decreasing)`,
--- as lean fails to show termination for the intended solution (like in Coq).
+/-!
+## Structural Recursion (Optional)
 
+In Lean, every `def` is checked for termination automatically. The
+compiler uses structural recursion analysis by default, and you can
+provide hints via `termination_by` when the automatic analysis needs help.
+-/
+
+/-!
+#### Exercise: 2 stars, standard, optional (decreasing)
+
+Write a terminating recursive definition that Lean rejects because its
+structural recursion checker cannot see a decreasing argument.
+-/
+
+/- FILL IN HERE -/
+
+-- =====================================================================
 -- # More Exercises
+-- =====================================================================
 
 -- ## Warmups
 
--- ### Exercise: 1 star, standard (identity_fn_applied_twice)
+/-!
+#### Exercise: 1 star, standard (identity_fn_applied_twice)
+-/
+
 theorem identity_fn_applied_twice :
-  ∀ (f : Bool → Bool),
-  (∀ (x : Bool), f x = x) →
-  ∀ (b : Bool), f (f b) = b := by
+    ∀ (f : Bool → Bool), (∀ x, f x = x) → ∀ b, f (f b) = b := by
   /- FILL IN HERE -/ sorry
 
--- ### Exercise: 1 star, standard (negation_fn_applied_twice)
+/-!
+#### Exercise: 1 star, standard (negation_fn_applied_twice)
+
+State and prove a theorem similar to the above, but where the hypothesis
+says that `f x = not x`.
+-/
+
 /- FILL IN HERE -/
 
--- ### Exercise: 3 stars, standard, optional (and_eq_or)
-theorem and_eq_or :
-  ∀ (b c : Bool),
-  (and b c = or b c) →
-  b = c := by
+/-!
+#### Exercise: 3 stars, standard, optional (andb_eq_orb)
+
+Hint: You will probably need both `cases` and `rw`.
+-/
+
+theorem andb_eq_orb :
+    ∀ (b c : Bool), (and b c = or b c) → b = c := by
   /- FILL IN HERE -/ sorry
 
 -- ## Course Late Policies, Formalized
+
+/-!
+We model a grading policy where a student's letter grade is lowered if
+they submit too many homework assignments late.
+-/
+
 namespace LateDays
-  inductive Letter : Type where
+
+  inductive Letter where
     | a | b | c | d | f
 
-  inductive Modifier : Type where
+  inductive Modifier where
     | plus | natural | minus
 
-  inductive Grade : Type where
+  inductive Grade where
     | grade (l : Letter) (m : Modifier)
 
-  inductive Comparison : Type where
-    | eq -- equal
-    | lt -- less than
-    | gt -- greater than
+  inductive Comparison where
+    | eq | lt | gt
 
-  def letter_comparison (l1 l2 : Letter) : Comparison :=
+  /-!
+  We define comparison by matching two values simultaneously. We can also
+  use `|` in patterns to match several possibilities at once:
+  `.c, .a | .c, .b` matches both `(.c, .a)` and `(.c, .b)`.
+  -/
+
+  def letterComparison (l1 l2 : Letter) : Comparison :=
     match l1, l2 with
-    | .a, .a                            => .eq
-    | .a, _                             => .gt
-    | .b, .a                            => .lt
-    | .b, .b                            => .eq
-    | .b, _                             => .gt
-    | .c, .a | .c, .b                   => .lt
-    | .c, .c                            => .eq
-    | .c, _                             => .gt
+    | .a, .a                             => .eq
+    | .a, _                              => .gt
+    | .b, .a                             => .lt
+    | .b, .b                             => .eq
+    | .b, _                              => .gt
+    | .c, .a | .c, .b                    => .lt
+    | .c, .c                             => .eq
+    | .c, _                              => .gt
     | .d, .a | .d, .b | .d, .c          => .lt
-    | .d, .d                            => .eq
-    | .d, _                             => .gt
+    | .d, .d                             => .eq
+    | .d, _                              => .gt
     | .f, .a | .f, .b | .f, .c | .f, .d => .lt
-    | .f, .f                            => .eq
+    | .f, .f                             => .eq
 
-  #eval letter_comparison .b .a -- .lt
-  #eval letter_comparison .d .d -- .eq
-  #eval letter_comparison .b .f -- .gt
+  #eval letterComparison .b .a  -- .lt
+  #eval letterComparison .d .d  -- .eq
+  #eval letterComparison .b .f  -- .gt
 
-  -- ### Exercise: 1 star, standard (letter_comparison)
-  def letter_comparison_eq :
-    ∀ l, letter_comparison l l = .eq := by
+  /-!
+  #### Exercise: 1 star, standard (letter_comparison)
+
+  Prove that `letterComparison l l = .eq` for all `l`.
+  -/
+
+  theorem letterComparison_eq :
+      ∀ l, letterComparison l l = .eq := by
     /- FILL IN HERE -/ sorry
 
-  def modifier_comparison (m1 m2 : Modifier) : Comparison :=
+  def modifierComparison (m1 m2 : Modifier) : Comparison :=
     match m1, m2 with
     | .plus, .plus                     => .eq
     | .plus, _                         => .gt
@@ -519,124 +753,174 @@ namespace LateDays
     | .minus, .plus | .minus, .natural => .lt
     | .minus, _                        => .eq
 
-  -- ### Exercise: 2 stars, standard (grade_comparison)
-  def grade_comparison (g1 g2 : Grade) : Comparison :=
+  /-!
+  #### Exercise: 2 stars, standard (grade_comparison)
+
+  Use lexicographic ordering: compare letters first, then modifiers only
+  when letters are equal.
+
+  Hint: Match `g1` and `g2`, then do case analysis on the result of
+  `letterComparison` to get just 3 possibilities.
+  -/
+
+  def gradeComparison (g1 g2 : Grade) : Comparison :=
     /- REPLACE THIS LINE WITH YOUR DEFINITION -/ sorry
 
-  example : grade_comparison (.grade .a .minus) (.grade .b .plus) = .gt :=
+  example : gradeComparison (.grade .a .minus) (.grade .b .plus) = .gt :=
+    /- FILL IN HERE -/ sorry
+  example : gradeComparison (.grade .a .minus) (.grade .a .plus) = .lt :=
+    /- FILL IN HERE -/ sorry
+  example : gradeComparison (.grade .f .plus) (.grade .f .plus) = .eq :=
+    /- FILL IN HERE -/ sorry
+  example : gradeComparison (.grade .b .minus) (.grade .c .plus) = .gt :=
     /- FILL IN HERE -/ sorry
 
-  example : grade_comparison (.grade .a .minus) (.grade .a .plus) = .lt :=
-    /- FILL IN HERE -/ sorry
-
-  example : grade_comparison (.grade .f .plus) (.grade .f .plus) = .eq :=
-    /- FILL IN HERE -/ sorry
-
-  example : grade_comparison (.grade .b .minus) (.grade .c .plus) = .gt :=
-    /- FILL IN HERE -/ sorry
-
-  def lower_letter (l : Letter) : Letter :=
+  def lowerLetter (l : Letter) : Letter :=
     match l with
     | .a => .b
     | .b => .c
     | .c => .d
     | .d => .f
-    | .f => .f -- Can't go lower than F!
+    | .f => .f  -- Can't go lower than F!
 
-  theorem lower_letter_lowers_wrong :
-    ∀ (l : Letter), letter_comparison (lower_letter l) l = .lt := by
-    intro l
-    cases l
-    . rfl -- a -> b
-    . rfl -- b -> c
-    . rfl -- c -> d
-    . rfl -- d -> f
-    . sorry -- We get stuck here
+  /-!
+  We might expect that lowering always produces a _lower_ letter. But
+  this isn't provable — the edge case of lowering `.f` returns `.f`
+  itself, so `letterComparison (lowerLetter .f) .f = .lt` is false.
+  -/
 
-  theorem lower_letter_f_is_f : lower_letter .f = .f := by
-    rfl
+  theorem lowerLetter_f_is_f : lowerLetter .f = .f := rfl
 
-  -- ### Exercise: 2 stars, standard (lower_letter_lowers)
-  theorem lower_letter_lowers :
-    ∀ (l : Letter),
-    letter_comparison .f l = .lt →
-    letter_comparison (lower_letter l) l = .lt := by
+  /-!
+  #### Exercise: 2 stars, standard (lower_letter_lowers)
+
+  With the extra hypothesis ruling out `.f`, the theorem becomes provable.
+  -/
+
+  theorem lowerLetter_lowers :
+      ∀ (l : Letter),
+      letterComparison .f l = .lt →
+      letterComparison (lowerLetter l) l = .lt := by
     /- FILL IN HERE -/ sorry
 
-  -- ### Exercise: 2 stars, standard (lower_grade)
-  def lower_grade (g : Grade) : Grade :=
+  /-!
+  #### Exercise: 2 stars, standard (lower_grade)
+
+  Define `lowerGrade` to lower a grade by one step (unless already
+  `Grade.grade .f .minus`).
+
+  Hint: Use nested pattern matching on the modifier. The outer match
+  should consider only the modifier. Do _not_ enumerate all cases.
+  Our solution is under 10 lines.
+  -/
+
+  def lowerGrade (g : Grade) : Grade :=
     /- REPLACE THIS LINE WITH YOUR DEFINITION -/ sorry
 
-  example : lower_grade (.grade .a .plus) = (.grade .a .natural) :=
+  example : lowerGrade (.grade .a .plus) = (.grade .a .natural) :=
+    /- FILL IN HERE -/ sorry
+  example : lowerGrade (.grade .a .natural) = (.grade .a .minus) :=
+    /- FILL IN HERE -/ sorry
+  example : lowerGrade (.grade .a .minus) = (.grade .b .plus) :=
+    /- FILL IN HERE -/ sorry
+  example : lowerGrade (.grade .b .plus) = (.grade .b .natural) :=
+    /- FILL IN HERE -/ sorry
+  example : lowerGrade (.grade .f .natural) = (.grade .f .minus) :=
+    /- FILL IN HERE -/ sorry
+  example : lowerGrade (lowerGrade (.grade .b .minus)) = (.grade .c .natural) :=
+    /- FILL IN HERE -/ sorry
+  example : lowerGrade (lowerGrade (lowerGrade (.grade .b .minus))) = (.grade .c .minus) :=
     /- FILL IN HERE -/ sorry
 
-  example : lower_grade (.grade .a .natural) = (.grade .a .minus) :=
+  theorem lowerGrade_f_minus :
+      lowerGrade (.grade .f .minus) = (.grade .f .minus) := by
     /- FILL IN HERE -/ sorry
 
-  example : lower_grade (.grade .a .minus) = (.grade .b .plus) :=
+  /-!
+  #### Exercise: 3 stars, standard (lower_grade_lowers)
+
+  Prove that `lowerGrade` indeed lowers the grade (as long as it starts
+  above F-). Judicious use of `cases` with rewriting is better than
+  destructing everything.
+  -/
+
+  theorem lowerGrade_lowers :
+      ∀ (g : Grade),
+      gradeComparison (.grade .f .minus) g = .lt →
+      gradeComparison (lowerGrade g) g = .lt := by
     /- FILL IN HERE -/ sorry
 
-  example : lower_grade (.grade .b .plus) = (.grade .b .natural) :=
-    /- FILL IN HERE -/ sorry
+  /-!
+  The late-days policy:
 
-  example : lower_grade (.grade .f .natural) = (.grade .f .minus) :=
-    /- FILL IN HERE -/ sorry
+      # late days     penalty
+         0 - 8        no penalty
+         9 - 16       lower by one step
+        17 - 20       lower by two steps
+          >= 21       lower by three steps
+  -/
 
-  example : lower_grade (lower_grade (.grade .b .minus)) = (.grade .c .natural) :=
-    /- FILL IN HERE -/ sorry
+  def applyLatePolicy (lateDays : Nat) (g : Grade) : Grade :=
+    if lateDays <? 9 then g
+    else if lateDays <? 17 then lowerGrade g
+    else if lateDays <? 21 then lowerGrade (lowerGrade g)
+    else lowerGrade (lowerGrade (lowerGrade g))
 
-  example : lower_grade (lower_grade (lower_grade (.grade .b .minus))) = (.grade .c .minus) :=
-    /- FILL IN HERE -/ sorry
+  -- This unfold lemma lets us `rw` to expose the definition's body:
+  theorem applyLatePolicy_unfold (lateDays : Nat) (g : Grade) :
+      applyLatePolicy lateDays g
+      = if lateDays <? 9 then g
+        else if lateDays <? 17 then lowerGrade g
+        else if lateDays <? 21 then lowerGrade (lowerGrade g)
+        else lowerGrade (lowerGrade (lowerGrade g))
+    := rfl
 
-  theorem lower_grade_f_minus : lower_grade (.grade .f .minus) = (.grade .f .minus) := by
-    /- FILL IN HERE -/ sorry
+  /-!
+  #### Exercise: 2 stars, standard (no_penalty_for_mostly_on_time)
 
-  -- ### Exercise: 3 stars, standard (lower_grade_lowers)
-  theorem lower_grade_lowers :
-    ∀ (g : Grade),
-    grade_comparison (.grade .f .minus) g = .lt →
-    grade_comparison (lower_grade g) g = .lt := by
-    /- FILL IN HERE -/ sorry
+  Hint: use `rw [applyLatePolicy_unfold]` then `rw` with the hypothesis.
+  -/
 
-  def apply_late_policy (late_days : Nat) (g : Grade) : Grade :=
-    if late_days <? 9 then g
-    else if late_days <? 17 then lower_grade g
-    else if late_days <? 21 then lower_grade (lower_grade g)
-    else lower_grade (lower_grade (lower_grade g))
-
-  theorem apply_late_policy_unfold :
-    ∀ (late_days : Nat) (g : Grade), apply_late_policy late_days g
-    =
-    if late_days <? 9 then g
-    else if late_days <? 17 then lower_grade g
-    else if late_days <? 21 then lower_grade (lower_grade g)
-    else lower_grade (lower_grade (lower_grade g))
-  := by
-    intros
-    rfl
-
-  -- ### Exercise: 2 stars, standard (no_penalty_for_mostly_on_time)
   theorem no_penalty_for_mostly_on_time :
-    ∀ (late_days : Nat) (g : Grade),
-    (late_days <? 9) = true →
-    apply_late_policy late_days g = g
-  := by
+      ∀ (lateDays : Nat) (g : Grade),
+      (lateDays <? 9) = true →
+      applyLatePolicy lateDays g = g := by
     /- FILL IN HERE -/ sorry
 
-  -- ### Exercise: 2 stars, standard (graded_lowered_once)
+  /-!
+  #### Exercise: 2 stars, standard (graded_lowered_once)
+  -/
+
   theorem grade_lowered_once :
-    ∀ (late_days : Nat) (g : Grade),
-      (late_days <? 9) = false →
-      (late_days <? 17) = true →
-      apply_late_policy late_days g = lower_grade g
-  := by
+      ∀ (lateDays : Nat) (g : Grade),
+      (lateDays <? 9) = false →
+      (lateDays <? 17) = true →
+      applyLatePolicy lateDays g = lowerGrade g := by
     /- FILL IN HERE -/ sorry
+
 end LateDays
 
 -- ## Binary Numerals
 
--- ### Exercise: 3 stars, standard (binary)
-inductive Bin : Type where
+/-!
+#### Exercise: 3 stars, standard (binary)
+
+Binary representation: a sequence of `b0` (0) and `b1` (1) constructors,
+terminated by `z`. Low-order bit is on the left.
+
+    decimal    binary                unary
+       0           z                    0
+       1        b1 z                    1
+       2    b0 (b1 z)                   2
+       3    b1 (b1 z)                   3
+       4  b0 (b0 (b1 z))               4
+       5  b1 (b0 (b1 z))               5
+       8  b0 (b0 (b0 (b1 z)))          8
+
+(Comprehension check: What does `b0 z` represent?)
+-/
+
+inductive Bin where
   | z
   | b0 (n : Bin)
   | b1 (n : Bin)
@@ -644,23 +928,20 @@ inductive Bin : Type where
 def incr (m : Bin) : Bin :=
   /- REPLACE THIS LINE WITH YOUR DEFINITION -/ sorry
 
-def bin_to_nat (m : Bin) : Nat :=
+def binToNat (m : Bin) : Nat :=
   /- REPLACE THIS LINE WITH YOUR DEFINITION -/ sorry
 
 example : (incr (.b1 .z)) = .b0 (.b1 .z) :=
   /- FILL IN HERE -/ sorry
-
 example : (incr (.b0 (.b1 .z))) = .b1 (.b1 .z) :=
   /- FILL IN HERE -/ sorry
-
 example : (incr (.b1 (.b1 .z))) = .b0 (.b0 (.b1 .z)) :=
   /- FILL IN HERE -/ sorry
-
-example : bin_to_nat (.b0 (.b1 .z)) = 2 :=
+example : binToNat (.b0 (.b1 .z)) = 2 :=
   /- FILL IN HERE -/ sorry
-
-example : bin_to_nat (incr (.b1 .z)) = 1 + bin_to_nat (.b1 .z) :=
+example : binToNat (incr (.b1 .z)) = 1 + binToNat (.b1 .z) :=
   /- FILL IN HERE -/ sorry
-
-example : bin_to_nat (incr (incr (.b1 .z))) = 2 + bin_to_nat (.b1 .z) :=
+example : binToNat (incr (incr (.b1 .z))) = 2 + binToNat (.b1 .z) :=
+  /- FILL IN HERE -/ sorry
+example : binToNat (.b0 (.b0 (.b0 (.b1 .z)))) = 8 :=
   /- FILL IN HERE -/ sorry
