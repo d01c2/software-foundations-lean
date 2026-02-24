@@ -32,6 +32,14 @@ _tactics_ that can be used to prove properties of programs.
 proofs are written as _terms_ (direct expressions) and tactics are
 reserved for more complex reasoning. We'll see both styles throughout
 this chapter.
+
+**naming convention:**
+- Names of proofs of propositions (`theorem`/`lemma`) use `snake_case`
+  (e.g., `add_comm`, `nat_bin_nat`).
+- Names of computational terms (`def`, non-`Prop`) use `lowerCamelCase`
+  (e.g., `nextWorkingDay`, `binToNat`).
+- Names of types and proposition families use `UpperCamelCase`
+  (e.g., `Nat`, `Bin`, `Even`).
 -/
 
 -- =====================================================================
@@ -137,10 +145,12 @@ infixl:55 " my|| " => orb
 example : .false my|| .false my|| .true = .true := rfl
 
 /-!
-Lean's `if`-`then`-`else` requires the condition to be `Bool` (or more
-precisely, `Decidable`). Since `MyBool` isn't the built-in `Bool`, we
-need to define a coercion. (If you don't know what a typeclass is yet,
-just skip this.)
+Here we use boolean `if`-`then`-`else`, where the condition must be
+`Bool`. Since `MyBool` isn't the built-in `Bool`, we need to define a
+coercion.
+
+(There is also proposition-style `if h : P then ... else ...`, which
+uses `Decidable P`. If you don't know typeclasses yet, skip this detail.)
 -/
 
 @[coe]
@@ -155,17 +165,9 @@ def negb' (b : MyBool) : MyBool := if b then .false else .true
 def andb' (b1 b2 : MyBool) : MyBool := if b1 then b2 else .false
 def orb'  (b1 b2 : MyBool) : MyBool := if b1 then .true else b2
 
-inductive BW where
-  | black
-  | white
-
-def invert (x : BW) : BW :=
-  match x with
-  | .black => .white
-  | .white => .black
-
-#eval invert .black  -- BW.white
-#eval invert .white  -- BW.black
+-- Coercion lets `MyBool` appear where `Bool` is expected (e.g. `if`):
+example : (if (MyBool.true : MyBool) then MyBool.false else MyBool.true) = MyBool.false := rfl
+example : negb' MyBool.true = negb MyBool.true := rfl
 
 /-!
 #### Exercise: 1 star, standard (nandb)
@@ -260,7 +262,7 @@ as `Namespace.name` from outside.
 -/
 
 namespace Playground
-  def foo : RGB := .blue
+def foo : RGB := .blue
 end Playground
 
 def foo : Bool := true
@@ -271,22 +273,22 @@ def foo : Bool := true
 -- ## Tuples
 
 namespace TuplePlayground
-  inductive Bit where
-    | b1
-    | b0
+inductive Bit where
+  | b1
+  | b0
 
-  inductive Nybble where
-    | bits (d0 d1 d2 d3 : Bit)
+inductive Nybble where
+  | bits (d0 d1 d2 d3 : Bit)
 
-  #check (Nybble.bits .b1 .b0 .b1 .b0 : Nybble)
+#check (Nybble.bits .b1 .b0 .b1 .b0 : Nybble)
 
-  def allZero (nb : Nybble) : Bool :=
-    match nb with
-    | .bits .b0 .b0 .b0 .b0 => true
-    | .bits  _   _   _   _  => false
+def allZero (nb : Nybble) : Bool :=
+  match nb with
+  | .bits .b0 .b0 .b0 .b0 => true
+  | .bits  _   _   _   _  => false
 
-  #eval allZero (Nybble.bits .b1 .b0 .b1 .b0)  -- false
-  #eval allZero (Nybble.bits .b0 .b0 .b0 .b0)  -- true
+#eval allZero (Nybble.bits .b1 .b0 .b1 .b0)  -- false
+#eval allZero (Nybble.bits .b0 .b0 .b0 .b0)  -- true
 end TuplePlayground
 
 -- ## Numbers
@@ -300,22 +302,22 @@ Natural numbers use a _unary_ (base 1) representation: `zero` for 0, and
 -/
 
 namespace NatPlayground
-  inductive Nat where
-    | zero
-    | succ (n : Nat)
+inductive Nat where
+  | zero
+  | succ (n : Nat)
 
-  -- A different encoding — names are arbitrary:
-  inductive OtherNat where
-    | stop
-    | tick (n : OtherNat)
+-- A different encoding — names are arbitrary:
+inductive OtherNat where
+  | stop
+  | tick (n : OtherNat)
 
-  def pred (n : Nat) : Nat :=
-    match n with
-    | .zero   => .zero
-    | .succ n' => n'
+def pred (n : Nat) : Nat :=
+  match n with
+  | .zero   => .zero
+  | .succ n' => n'
 end NatPlayground
 
--- Lean prints natural numbers in decimal by default:
+-- From here on, we return to Lean's built-in `Nat`.
 #check Nat.succ (.succ (.succ (.succ .zero)))  -- 4 : Nat
 -- Dot notation: `n.succ` is `Nat.succ n`
 #check Nat.zero.succ.succ.succ.succ            -- 4 : Nat
@@ -357,27 +359,27 @@ example : odd 1 = true  := rfl
 example : odd 4 = false := rfl
 
 namespace NatPlayground2
-  def plus (n m : Nat) : Nat :=
-    match n with
-    | .zero   => m
-    | .succ n' => .succ (plus n' m)
+def plus (n m : Nat) : Nat :=
+  match n with
+  | .zero   => m
+  | .succ n' => .succ (plus n' m)
 
-  #eval plus 3 2  -- 5
+#eval plus 3 2  -- 5
 
-  -- If two or more arguments have the same type, they can be grouped:
-  def mult (n m : Nat) : Nat :=
-    match n with
-    | .zero    => .zero
-    | .succ n' => plus m (mult n' m)
+-- If two or more arguments have the same type, they can be grouped:
+def mult (n m : Nat) : Nat :=
+  match n with
+  | .zero    => .zero
+  | .succ n' => plus m (mult n' m)
 
-  example : mult 3 3 = 9 := rfl
+example : mult 3 3 = 9 := rfl
 
-  -- We can match two expressions at once:
-  def minus (n m : Nat) : Nat :=
-    match n, m with
-    | .zero,    _        => .zero
-    | .succ _,  .zero    => n
-    | .succ n', .succ m' => minus n' m'
+-- We can match two expressions at once:
+def minus (n m : Nat) : Nat :=
+  match n, m with
+  | .zero,    _        => .zero
+  | .succ _,  .zero    => n
+  | .succ n', .succ m' => minus n' m'
 end NatPlayground2
 
 def exp (base power : Nat) : Nat :=
@@ -418,7 +420,7 @@ def eqb (n m : Nat) : Bool :=
   | .succ _,  .zero    => false
   | .succ n', .succ m' => eqb n' m'
 
--- `leb` tests whether its first argument is ≤ its second:
+-- `leb` tests whether its first argument is ≤ (`\le`) its second:
 def leb (n m : Nat) : Bool :=
   match n, m with
   | .zero,    _        => true
@@ -470,10 +472,10 @@ general theorems.
 In Lean, there are two main ways to write proofs:
 
 1. **Term-mode** — the proof is a direct expression (like `rfl`, or
-   `fun x => ...`). Lean is a dependently-typed language, so proofs _are_
-   terms.
+    `fun x => ...`). Lean is a dependently-typed language, so proofs _are_
+    terms.
 2. **Tactic-mode** — introduced with `by`, you give step-by-step
-   instructions. Useful for complex proofs.
+    instructions. Useful for complex proofs.
 
 Idiomatic Lean uses term-mode for simple proofs and tactics when reasoning
 gets complex.
@@ -485,8 +487,8 @@ example : 1 + 1 = 2 := rfl
 /-!
 Lean's `Nat.add` is defined by recursion on the _second_ argument:
 
-    n + 0     = n            (by definition)
-    n + (m+1) = (n + m) + 1  (by definition)
+    n + 0       = n            (by definition)
+    n + (m + 1) = (n + m) + 1  (by definition)
 
 So `n + 0 = n` holds by `rfl`, but `0 + n = n` does _not_ — it requires
 the `simp` tactic. `Nat.mul` recurses on the second argument similarly.
@@ -507,11 +509,13 @@ theorem zero_mul (n : Nat) : 0 * n = 0 := by simp
 
 /-!
 The following theorem talks about a specialized property that only holds
-when `n = m`. The arrow `→` is pronounced "implies."
+when `n = m`. The arrow `→` (type as `\r` or `\to`) is pronounced
+"implies."
 -/
 
 -- Term-mode: `h ▸ rfl` substitutes using `h`, then checks reflexivity.
--- The `▸` operator is one of Lean's key tools for rewriting in term mode.
+-- The `▸` operator (type as `\t` or `\rw`) is one of Lean's key tools
+-- for rewriting in term mode.
 theorem plus_id_example (n m : Nat) (h : n = m) : n + n = m + m :=
   h ▸ rfl
 
@@ -529,9 +533,12 @@ closes the goal with `rfl` if both sides become definitionally equal.
 #### Exercise: 1 star, standard (plus_id_exercise)
 
 Note: the theorem has _two_ hypotheses — `n = m` and `m = o`.
+The quantifier `∀` can be typed as `\forall` or `\all`.
+Style note: `∀ n, P n` and `(n : T) → P n` are equivalent; below we use
+binders on the left of `:`.
 -/
 
-theorem plus_id_exercise : ∀ n m o : Nat, n = m → m = o → n + m = m + o := by
+theorem plus_id_exercise (n m o : Nat) : n = m → m = o → n + m = m + o := by
   /- FILL IN HERE -/ sorry
 
 -- We can rewrite using previously proved theorems, not just hypotheses:
@@ -547,7 +554,7 @@ theorem mul_zero_add_mul_zero_eq_zero (p q : Nat) : (p * 0) + (q * 0) = 0 := by
 Use `Nat.mul_succ` and `Nat.mul_zero` (or `rw`/`simp`).
 -/
 
-theorem mul_one : ∀ p : Nat, p * 1 = p := by
+theorem mul_one (p : Nat) : p * 1 = p := by
   /- FILL IN HERE -/ sorry
 
 -- =====================================================================
@@ -574,9 +581,9 @@ theorem add_one_neq_zero (n : Nat) : (n + 1 =? 0) = false := by
 `cases` generates one subgoal per constructor. In each subgoal, `n` is
 replaced by the constructor, enabling further simplification.
 
-For types with finitely many values (like `Bool`), Lean offers an
-alternative: the `decide` tactic, which exhaustively checks all cases
-automatically:
+For finite types like `Bool`, you can prove goals manually (with
+pattern matching or `cases`) or use the `decide` tactic, which
+exhaustively checks all cases automatically:
 -/
 
 -- Term-mode proof using pattern matching:
@@ -590,8 +597,11 @@ theorem not_involutive' (b : Bool) : not (not b) = b := by
   cases b <;> rfl
 
 -- `decide` exhaustively checks all cases. It needs a closed proposition
--- (no free variables), so we use the `∀` form:
-theorem not_involutive'' : ∀ b : Bool, not (not b) = b := by decide
+-- (no free variables), so we first prove a `∀` (`\forall`/`\all`) theorem
+-- in `h`, then instantiate it with `b`.
+theorem not_involutive'' (b : Bool) : not (not b) = b := by
+  have h : ∀ b : Bool, not (not b) = b := by decide
+  exact h b
 
 /-!
 **Lean note on `decide`:** `decide` works for any `Decidable` proposition
@@ -599,8 +609,8 @@ over finite types. It's very convenient for `Bool` theorems but cannot
 handle universally quantified statements over infinite types like `Nat`
 — for those, you need `cases` or `induction`.
 
-The `·` (middle dot) is Lean's bullet marker for focusing on subgoals.
-You can also use `next =>` or the `with` syntax:
+The `·` (middle dot, type as `\.` or `\cdot`) is Lean's bullet marker
+for focusing on subgoals. You can also use `next =>` or the `with` syntax:
 -/
 
 theorem and_commutative (b c : Bool) : and b c = and c b := by
@@ -612,8 +622,11 @@ theorem and_commutative (b c : Bool) : and b c = and c b := by
 theorem and_commutative' (b c : Bool) : and b c = and c b := by
   cases b <;> cases c <;> rfl
 
--- Or by exhaustive decision (`∀` form so `decide` sees a closed proposition):
-theorem and_commutative'' : ∀ b c : Bool, and b c = and c b := by decide
+-- Or by exhaustive decision (prove a closed `∀` proposition in `h`,
+-- then apply it to the local variables):
+theorem and_commutative'' (b c : Bool) : and b c = and c b := by
+  have h : ∀ b c : Bool, and b c = and c b := by decide
+  exact h b c
 
 theorem and3_exchange (b c d : Bool) :
     and (and b c) d = and (and b d) c := by
@@ -626,14 +639,14 @@ Hint: You will need to `cases` both booleans. Simplifying hypotheses
 (with `simp at h`) before the second `cases` can help.
 -/
 
-theorem and_true_elim2 : ∀ b c : Bool, and b c = true → c = true := by
+theorem and_true_elim2 (b c : Bool) : and b c = true → c = true := by
   /- FILL IN HERE -/ sorry
 
 /-!
-#### Exercise: 1 star, standard (zero_nbeq_plus_1)
+#### Exercise: 1 star, standard (zero_nbeq_add_one)
 -/
 
-theorem zero_nbeq_add_one : ∀ n : Nat, (0 =? n + 1) = false := by
+theorem zero_nbeq_add_one (n : Nat) : (0 =? n + 1) = false := by
   /- FILL IN HERE -/ sorry
 
 /-!
@@ -663,8 +676,8 @@ structural recursion checker cannot see a decreasing argument.
 #### Exercise: 1 star, standard (identity_fn_applied_twice)
 -/
 
-theorem identity_fn_applied_twice :
-    ∀ (f : Bool → Bool), (∀ x, f x = x) → ∀ b, f (f b) = b := by
+theorem identity_fn_applied_twice (f : Bool → Bool) :
+    (∀ x, f x = x) → (b : Bool) → f (f b) = b := by
   /- FILL IN HERE -/ sorry
 
 /-!
@@ -682,8 +695,7 @@ says that `f x = not x`.
 Hint: You will probably need both `cases` and `rw`.
 -/
 
-theorem andb_eq_orb :
-    ∀ (b c : Bool), (and b c = or b c) → b = c := by
+theorem andb_eq_orb (b c : Bool) : (and b c = or b c) → b = c := by
   /- FILL IN HERE -/ sorry
 
 -- ## Course Late Policies, Formalized
@@ -695,208 +707,203 @@ they submit too many homework assignments late.
 
 namespace LateDays
 
-  inductive Letter where
-    | a | b | c | d | f
+inductive Letter where
+  | a | b | c | d | f
 
-  inductive Modifier where
-    | plus | natural | minus
+inductive Modifier where
+  | plus | natural | minus
 
-  inductive Grade where
-    | grade (l : Letter) (m : Modifier)
+inductive Grade where
+  | grade (l : Letter) (m : Modifier)
 
-  inductive Comparison where
-    | eq | lt | gt
+inductive Comparison where
+  | eq | lt | gt
 
-  /-!
-  We define comparison by matching two values simultaneously. We can also
-  use `|` in patterns to match several possibilities at once:
-  `.c, .a | .c, .b` matches both `(.c, .a)` and `(.c, .b)`.
-  -/
+/-!
+We define comparison by matching two values simultaneously. We can also
+use `|` in patterns to match several possibilities at once:
+`.c, .a | .c, .b` matches both `(.c, .a)` and `(.c, .b)`.
+-/
 
-  def letterComparison (l1 l2 : Letter) : Comparison :=
-    match l1, l2 with
-    | .a, .a                             => .eq
-    | .a, _                              => .gt
-    | .b, .a                             => .lt
-    | .b, .b                             => .eq
-    | .b, _                              => .gt
-    | .c, .a | .c, .b                    => .lt
-    | .c, .c                             => .eq
-    | .c, _                              => .gt
-    | .d, .a | .d, .b | .d, .c          => .lt
-    | .d, .d                             => .eq
-    | .d, _                              => .gt
-    | .f, .a | .f, .b | .f, .c | .f, .d => .lt
-    | .f, .f                             => .eq
+def letterComparison (l1 l2 : Letter) : Comparison :=
+  match l1, l2 with
+  | .a, .a                             => .eq
+  | .a, _                              => .gt
+  | .b, .a                             => .lt
+  | .b, .b                             => .eq
+  | .b, _                              => .gt
+  | .c, .a | .c, .b                    => .lt
+  | .c, .c                             => .eq
+  | .c, _                              => .gt
+  | .d, .a | .d, .b | .d, .c          => .lt
+  | .d, .d                             => .eq
+  | .d, _                              => .gt
+  | .f, .a | .f, .b | .f, .c | .f, .d => .lt
+  | .f, .f                             => .eq
 
-  #eval letterComparison .b .a  -- .lt
-  #eval letterComparison .d .d  -- .eq
-  #eval letterComparison .b .f  -- .gt
+#eval letterComparison .b .a  -- .lt
+#eval letterComparison .d .d  -- .eq
+#eval letterComparison .b .f  -- .gt
 
-  /-!
-  #### Exercise: 1 star, standard (letter_comparison)
+/-!
+#### Exercise: 1 star, standard (letter_comparison)
 
-  Prove that `letterComparison l l = .eq` for all `l`.
-  -/
+Prove that `letterComparison l l = .eq` for all `l`.
+-/
 
-  theorem letterComparison_eq :
-      ∀ l, letterComparison l l = .eq := by
-    /- FILL IN HERE -/ sorry
+theorem letter_comparison_eq (l : Letter) : letterComparison l l = .eq := by
+  /- FILL IN HERE -/ sorry
 
-  def modifierComparison (m1 m2 : Modifier) : Comparison :=
-    match m1, m2 with
-    | .plus, .plus                     => .eq
-    | .plus, _                         => .gt
-    | .natural, .plus                  => .lt
-    | .natural, .natural               => .eq
-    | .natural, _                      => .gt
-    | .minus, .plus | .minus, .natural => .lt
-    | .minus, _                        => .eq
+def modifierComparison (m1 m2 : Modifier) : Comparison :=
+  match m1, m2 with
+  | .plus, .plus                     => .eq
+  | .plus, _                         => .gt
+  | .natural, .plus                  => .lt
+  | .natural, .natural               => .eq
+  | .natural, _                      => .gt
+  | .minus, .plus | .minus, .natural => .lt
+  | .minus, _                        => .eq
 
-  /-!
-  #### Exercise: 2 stars, standard (grade_comparison)
+/-!
+#### Exercise: 2 stars, standard (grade_comparison)
 
-  Use lexicographic ordering: compare letters first, then modifiers only
-  when letters are equal.
+Use lexicographic ordering: compare letters first, then modifiers only
+when letters are equal.
 
-  Hint: Match `g1` and `g2`, then do case analysis on the result of
-  `letterComparison` to get just 3 possibilities.
-  -/
+Hint: Match `g1` and `g2`, then do case analysis on the result of
+`letterComparison` to get just 3 possibilities.
+-/
 
-  def gradeComparison (g1 g2 : Grade) : Comparison :=
-    /- REPLACE THIS LINE WITH YOUR DEFINITION -/ sorry
+def gradeComparison (g1 g2 : Grade) : Comparison :=
+  /- REPLACE THIS LINE WITH YOUR DEFINITION -/ sorry
 
-  example : gradeComparison (.grade .a .minus) (.grade .b .plus) = .gt :=
-    /- FILL IN HERE -/ sorry
-  example : gradeComparison (.grade .a .minus) (.grade .a .plus) = .lt :=
-    /- FILL IN HERE -/ sorry
-  example : gradeComparison (.grade .f .plus) (.grade .f .plus) = .eq :=
-    /- FILL IN HERE -/ sorry
-  example : gradeComparison (.grade .b .minus) (.grade .c .plus) = .gt :=
-    /- FILL IN HERE -/ sorry
+example : gradeComparison (.grade .a .minus) (.grade .b .plus) = .gt :=
+  /- FILL IN HERE -/ sorry
+example : gradeComparison (.grade .a .minus) (.grade .a .plus) = .lt :=
+  /- FILL IN HERE -/ sorry
+example : gradeComparison (.grade .f .plus) (.grade .f .plus) = .eq :=
+  /- FILL IN HERE -/ sorry
+example : gradeComparison (.grade .b .minus) (.grade .c .plus) = .gt :=
+  /- FILL IN HERE -/ sorry
 
-  def lowerLetter (l : Letter) : Letter :=
-    match l with
-    | .a => .b
-    | .b => .c
-    | .c => .d
-    | .d => .f
-    | .f => .f  -- Can't go lower than F!
+def lowerLetter (l : Letter) : Letter :=
+  match l with
+  | .a => .b
+  | .b => .c
+  | .c => .d
+  | .d => .f
+  | .f => .f  -- Can't go lower than F!
 
-  /-!
-  We might expect that lowering always produces a _lower_ letter. But
-  this isn't provable — the edge case of lowering `.f` returns `.f`
-  itself, so `letterComparison (lowerLetter .f) .f = .lt` is false.
-  -/
+/-!
+We might expect that lowering always produces a _lower_ letter. But
+this isn't provable — the edge case of lowering `.f` returns `.f`
+itself, so `letterComparison (lowerLetter .f) .f = .lt` is false.
+-/
 
-  theorem lowerLetter_f_is_f : lowerLetter .f = .f := rfl
+theorem lower_letter_f_is_f : lowerLetter .f = .f := rfl
 
-  /-!
-  #### Exercise: 2 stars, standard (lower_letter_lowers)
+/-!
+#### Exercise: 2 stars, standard (lower_letter_lowers)
 
-  With the extra hypothesis ruling out `.f`, the theorem becomes provable.
-  -/
+With the extra hypothesis ruling out `.f`, the theorem becomes provable.
+-/
 
-  theorem lowerLetter_lowers :
-      ∀ (l : Letter),
-      letterComparison .f l = .lt →
-      letterComparison (lowerLetter l) l = .lt := by
-    /- FILL IN HERE -/ sorry
+theorem lower_letter_lowers (l : Letter) :
+    letterComparison .f l = .lt →
+    letterComparison (lowerLetter l) l = .lt := by
+  /- FILL IN HERE -/ sorry
 
-  /-!
-  #### Exercise: 2 stars, standard (lower_grade)
+/-!
+#### Exercise: 2 stars, standard (lower_grade)
 
-  Define `lowerGrade` to lower a grade by one step (unless already
-  `Grade.grade .f .minus`).
+Define `lowerGrade` to lower a grade by one step (unless already
+`Grade.grade .f .minus`).
 
-  Hint: Use nested pattern matching on the modifier. The outer match
-  should consider only the modifier. Do _not_ enumerate all cases.
-  Our solution is under 10 lines.
-  -/
+Hint: Use nested pattern matching on the modifier. The outer match
+should consider only the modifier. Do _not_ enumerate all cases.
+Our solution is under 10 lines.
+-/
 
-  def lowerGrade (g : Grade) : Grade :=
-    /- REPLACE THIS LINE WITH YOUR DEFINITION -/ sorry
+def lowerGrade (g : Grade) : Grade :=
+  /- REPLACE THIS LINE WITH YOUR DEFINITION -/ sorry
 
-  example : lowerGrade (.grade .a .plus) = (.grade .a .natural) :=
-    /- FILL IN HERE -/ sorry
-  example : lowerGrade (.grade .a .natural) = (.grade .a .minus) :=
-    /- FILL IN HERE -/ sorry
-  example : lowerGrade (.grade .a .minus) = (.grade .b .plus) :=
-    /- FILL IN HERE -/ sorry
-  example : lowerGrade (.grade .b .plus) = (.grade .b .natural) :=
-    /- FILL IN HERE -/ sorry
-  example : lowerGrade (.grade .f .natural) = (.grade .f .minus) :=
-    /- FILL IN HERE -/ sorry
-  example : lowerGrade (lowerGrade (.grade .b .minus)) = (.grade .c .natural) :=
-    /- FILL IN HERE -/ sorry
-  example : lowerGrade (lowerGrade (lowerGrade (.grade .b .minus))) = (.grade .c .minus) :=
-    /- FILL IN HERE -/ sorry
+example : lowerGrade (.grade .a .plus) = (.grade .a .natural) :=
+  /- FILL IN HERE -/ sorry
+example : lowerGrade (.grade .a .natural) = (.grade .a .minus) :=
+  /- FILL IN HERE -/ sorry
+example : lowerGrade (.grade .a .minus) = (.grade .b .plus) :=
+  /- FILL IN HERE -/ sorry
+example : lowerGrade (.grade .b .plus) = (.grade .b .natural) :=
+  /- FILL IN HERE -/ sorry
+example : lowerGrade (.grade .f .natural) = (.grade .f .minus) :=
+  /- FILL IN HERE -/ sorry
+example : lowerGrade (lowerGrade (.grade .b .minus)) = (.grade .c .natural) :=
+  /- FILL IN HERE -/ sorry
+example : lowerGrade (lowerGrade (lowerGrade (.grade .b .minus))) = (.grade .c .minus) :=
+  /- FILL IN HERE -/ sorry
 
-  theorem lowerGrade_f_minus :
-      lowerGrade (.grade .f .minus) = (.grade .f .minus) := by
-    /- FILL IN HERE -/ sorry
+theorem lower_grade_f_minus :
+    lowerGrade (.grade .f .minus) = (.grade .f .minus) := by
+  /- FILL IN HERE -/ sorry
 
-  /-!
-  #### Exercise: 3 stars, standard (lower_grade_lowers)
+/-!
+#### Exercise: 3 stars, standard (lower_grade_lowers)
 
-  Prove that `lowerGrade` indeed lowers the grade (as long as it starts
-  above F-). Judicious use of `cases` with rewriting is better than
-  destructing everything.
-  -/
+Prove that `lowerGrade` indeed lowers the grade (as long as it starts
+above F-). Judicious use of `cases` with rewriting is better than
+destructing everything.
+-/
 
-  theorem lowerGrade_lowers :
-      ∀ (g : Grade),
-      gradeComparison (.grade .f .minus) g = .lt →
-      gradeComparison (lowerGrade g) g = .lt := by
-    /- FILL IN HERE -/ sorry
+theorem lower_grade_lowers (g : Grade) :
+    gradeComparison (.grade .f .minus) g = .lt →
+    gradeComparison (lowerGrade g) g = .lt := by
+  /- FILL IN HERE -/ sorry
 
-  /-!
-  The late-days policy:
+/-!
+The late-days policy:
 
-      # late days     penalty
-         0 - 8        no penalty
-         9 - 16       lower by one step
-        17 - 20       lower by two steps
-          >= 21       lower by three steps
-  -/
+    # late days     penalty
+      0  - 8        no penalty
+      9  - 16       lower by one step
+      17 - 20       lower by two steps
+        >= 21       lower by three steps
+-/
 
-  def applyLatePolicy (lateDays : Nat) (g : Grade) : Grade :=
-    if lateDays <? 9 then g
-    else if lateDays <? 17 then lowerGrade g
-    else if lateDays <? 21 then lowerGrade (lowerGrade g)
-    else lowerGrade (lowerGrade (lowerGrade g))
+def applyLatePolicy (lateDays : Nat) (g : Grade) : Grade :=
+  if lateDays <? 9 then g
+  else if lateDays <? 17 then lowerGrade g
+  else if lateDays <? 21 then lowerGrade (lowerGrade g)
+  else lowerGrade (lowerGrade (lowerGrade g))
 
-  -- This unfold lemma lets us `rw` to expose the definition's body:
-  theorem applyLatePolicy_unfold (lateDays : Nat) (g : Grade) :
-      applyLatePolicy lateDays g
-      = if lateDays <? 9 then g
-        else if lateDays <? 17 then lowerGrade g
-        else if lateDays <? 21 then lowerGrade (lowerGrade g)
-        else lowerGrade (lowerGrade (lowerGrade g))
-    := rfl
+-- This unfold lemma lets us `rw` to expose the definition's body:
+theorem apply_late_policy_unfold (lateDays : Nat) (g : Grade) :
+    applyLatePolicy lateDays g
+    = if lateDays <? 9 then g
+      else if lateDays <? 17 then lowerGrade g
+      else if lateDays <? 21 then lowerGrade (lowerGrade g)
+      else lowerGrade (lowerGrade (lowerGrade g))
+  := rfl
 
-  /-!
-  #### Exercise: 2 stars, standard (no_penalty_for_mostly_on_time)
+/-!
+#### Exercise: 2 stars, standard (no_penalty_for_mostly_on_time)
 
-  Hint: use `rw [applyLatePolicy_unfold]` then `rw` with the hypothesis.
-  -/
+Hint: use `rw [apply_late_policy_unfold]` then `rw` with the hypothesis.
+-/
 
-  theorem no_penalty_for_mostly_on_time :
-      ∀ (lateDays : Nat) (g : Grade),
-      (lateDays <? 9) = true →
-      applyLatePolicy lateDays g = g := by
-    /- FILL IN HERE -/ sorry
+theorem no_penalty_for_mostly_on_time (lateDays : Nat) (g : Grade) :
+    (lateDays <? 9) = true →
+    applyLatePolicy lateDays g = g := by
+  /- FILL IN HERE -/ sorry
 
-  /-!
-  #### Exercise: 2 stars, standard (graded_lowered_once)
-  -/
+/-!
+#### Exercise: 2 stars, standard (grade_lowered_once)
+-/
 
-  theorem grade_lowered_once :
-      ∀ (lateDays : Nat) (g : Grade),
-      (lateDays <? 9) = false →
-      (lateDays <? 17) = true →
-      applyLatePolicy lateDays g = lowerGrade g := by
-    /- FILL IN HERE -/ sorry
+theorem grade_lowered_once (lateDays : Nat) (g : Grade) :
+    (lateDays <? 9) = false →
+    (lateDays <? 17) = true →
+    applyLatePolicy lateDays g = lowerGrade g := by
+  /- FILL IN HERE -/ sorry
 
 end LateDays
 
@@ -908,14 +915,14 @@ end LateDays
 Binary representation: a sequence of `b0` (0) and `b1` (1) constructors,
 terminated by `z`. Low-order bit is on the left.
 
-    decimal    binary                unary
-       0           z                    0
-       1        b1 z                    1
-       2    b0 (b1 z)                   2
-       3    b1 (b1 z)                   3
-       4  b0 (b0 (b1 z))               4
-       5  b1 (b0 (b1 z))               5
-       8  b0 (b0 (b0 (b1 z)))          8
+    decimal     binary               unary
+      0                 z              0
+      1              b1 z              1
+      2          b0 (b1 z)             2
+      3          b1 (b1 z)             3
+      4      b0 (b0 (b1 z))            4
+      5      b1 (b0 (b1 z))            5
+      8  b0 (b0 (b0 (b1 z)))           8
 
 (Comprehension check: What does `b0 z` represent?)
 -/

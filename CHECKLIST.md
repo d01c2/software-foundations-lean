@@ -1,0 +1,13 @@
+- Vol 1, Logical Foundations
+  - [x] Preface
+  - [x] Functional Programming in Lean (Basics)
+  - [x] Proof by Induction (Induction)
+  - [ ] Working with Structured Data (Lists)
+  - [ ] Polymorphism and Higher-Order Functions (Poly)
+  - [ ] More Basic Tactics (Tactics)
+  - [ ] Logic in Lean (Logic)
+  - [ ] Inductively Defined Propositions (IndProp)
+  - [ ] Total and Partial Maps (Maps)
+  - [ ] Simple Imperative Programs (Imp)
+  - [ ] More Automation (Auto)
+  - [x] Postscript

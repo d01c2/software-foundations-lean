@@ -932,7 +932,7 @@ theorem even_double (k : Nat) : even (double k) = true := by
 
 theorem even_double_conv : ∀ n : Nat, ∃ k,
     n = if even n then double k else Nat.succ (double k) := by
-  -- Hint: Use the `even_S` theorem from Induction.
+  -- Hint: Use the `even_succ` theorem from Induction.
   /- FILL IN HERE -/ sorry
 
 /-!

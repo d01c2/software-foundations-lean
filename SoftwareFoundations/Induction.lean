@@ -15,31 +15,32 @@ Ported from Software Foundations (Logical Foundations)
 Recall from Basics that Lean's `Nat.add` recurses on the _second_
 argument:
 
-    n + 0     = n            (definitional — `rfl` works)
-    n + (m+1) = (n + m) + 1  (definitional — `rfl` works)
+    n + 0       = n            (definitional — `rfl` works)
+    n + (m + 1) = (n + m) + 1  (definitional — `rfl` works)
 
 So `n + 0 = n` holds by `rfl`. But `0 + n = n` does _not_ — when `n`
 is an unknown variable, the recursive case cannot simplify because `+`
 peels off from the second argument, not the first.
 
-We proved `zero_add` in Basics using `simp`. But what is `simp` really
-doing? Under the hood, it uses _induction_. Let's see how to write the
-proof explicitly.
+We proved `zero_add` in Basics using `simp`. There, `simp` succeeds by
+rewriting with known lemmas (many arithmetic lemmas in the library are
+proved by induction). To understand the proof structure, let's write the
+induction proof explicitly.
 -/
 
 -- `n + 0 = n` is definitional — useful as a named lemma for later proofs:
-theorem add_zero_r (n : Nat) : n + 0 = n := rfl
+theorem add_zero_right (n : Nat) : n + 0 = n := rfl
 
 -- `0 + n = n` requires induction. Here is the explicit proof:
-example : ∀ n : Nat, 0 + n = n := by
-  intro n
+example (n : Nat) : 0 + n = n := by
   induction n with
   | zero => rfl
   | succ n' ih =>
     -- Goal: 0 + (n' + 1) = n' + 1
-    -- By definition of +, this is (0 + n') + 1 = n' + 1
-    -- The induction hypothesis `ih : 0 + n' = n'` finishes it:
-    simp [ih]
+    -- By definition of +, this is Nat.succ (0 + n') = Nat.succ n'
+    -- So we can rewrite with the induction hypothesis inside `Nat.succ`.
+    show Nat.succ (0 + n') = Nat.succ n'
+    rw [ih]
 
 /-!
 The `induction n with` tactic generates one subgoal per constructor of
@@ -70,10 +71,10 @@ Prove the following using induction. You might need previously proven
 results.
 -/
 
-theorem mul_0_r (n : Nat) : n * 0 = 0 := by
+theorem mul_zero_right (n : Nat) : n * 0 = 0 := by
   /- FILL IN HERE -/ sorry
 
-theorem plus_n_Sm (n m : Nat) : Nat.succ (n + m) = n + Nat.succ m := by
+theorem succ_add_eq_add_succ (n m : Nat) : Nat.succ (n + m) = n + Nat.succ m := by
   /- FILL IN HERE -/ sorry
 
 theorem add_comm (n m : Nat) : n + m = m + n := by
@@ -113,16 +114,21 @@ theorem eqb_refl (n : Nat) : (n =? n) = true := by
   /- FILL IN HERE -/ sorry
 
 /-!
-#### Exercise: 2 stars, standard, optional (even_S)
+#### Exercise: 2 stars, standard, optional (even_succ)
 
-One inconvenient aspect of our definition of `even n` is the recursive
-call on `n - 2`. This makes proofs about `even n` harder when done by
-induction on `n`, since we may need an induction hypothesis about
-`n - 2`. The following lemma gives an alternative characterization of
-`even (n + 1)` that works better with induction:
+One inconvenient aspect of our definition of `even n` is that it
+recurses by peeling off _two_ successors at a time:
+
+    even (.succ (.succ n')) = even n'
+
+(equivalently, a recursive call "on `n - 2`"). This can make proofs
+by induction on `n` awkward, since the step case may need information
+about a value two steps smaller. The following lemma gives an
+alternative characterization of `even (n + 1)` that works better with
+induction:
 -/
 
-theorem even_S (n : Nat) : even (.succ n) = not (even n) := by
+theorem even_succ (n : Nat) : even (.succ n) = not (even n) := by
   /- FILL IN HERE -/ sorry
 
 -- =====================================================================
@@ -138,7 +144,9 @@ convenient to state and prove the fact inline using `have`.
 -/
 
 theorem mult_0_plus' (n m : Nat) : (n + 0 + 0) * m = n * m := by
-  have h : n + 0 + 0 = n := by omega
+  have h : n + 0 + 0 = n := by
+    rw [add_zero_right (n + 0)]
+    rw [add_zero_right n]
   rw [h]
 
 /-!
@@ -146,25 +154,25 @@ As another example, suppose we want to prove that
 `(n + m) + (p + q) = (m + n) + (p + q)`. The only difference between
 the two sides is that the arguments `m` and `n` to the first inner `+`
 are swapped, so it seems we should be able to use the commutativity of
-addition (`add_comm`) to rewrite one into the other.
+addition (`Nat.add_comm`) to rewrite one into the other.
 
-However, `rw [add_comm]` is not very smart about _where_ it applies the
+However, `rw [Nat.add_comm]` is not very smart about _where_ it applies the
 rewrite. It rewrites the first match it finds, which may not be the one
 we want.
 
 In Lean, we can guide `rw` by supplying arguments to the lemma. Writing
-`rw [add_comm n m]` tells Lean to rewrite specifically the term `n + m`
+`rw [Nat.add_comm n m]` tells Lean to rewrite specifically the term `n + m`
 into `m + n`:
 -/
 
 theorem plus_rearrange (n m p q : Nat) :
     (n + m) + (p + q) = (m + n) + (p + q) := by
-  rw [add_comm n m]
+  rw [Nat.add_comm n m]
 
 -- Alternatively, we can use `have` to establish an intermediate fact:
 theorem plus_rearrange' (n m p q : Nat) :
     (n + m) + (p + q) = (m + n) + (p + q) := by
-  have h : n + m = m + n := by rw [add_comm]
+  have h : n + m = m + n := by rw [Nat.add_comm n m]
   rw [h]
 
 -- =====================================================================
@@ -197,10 +205,14 @@ efficient for communicating ideas between humans.
 For example, here is a formal proof that addition is associative:
 -/
 
+-- Library lemma used below:
+-- `Nat.succ_add : Nat.succ n + m = Nat.succ (n + m)`
 theorem add_assoc' (n m p : Nat) : n + (m + p) = (n + m) + p := by
   induction n with
   | zero => simp
   | succ n' ih => simp [Nat.succ_add, ih]
+-- In the `succ` case, `Nat.succ_add` corresponds to rewriting
+-- `(n' + 1) + x` into `(n' + x) + 1` in the informal proof below.
 
 /-!
 Lean is perfectly happy with this. For a human, however, it is
@@ -268,7 +280,7 @@ Proof: /- FILL IN HERE -/
 -- =====================================================================
 
 /-!
-#### Exercise: 3 stars, standard, especially useful (mul_comm)
+#### Exercise: 3 stars, standard, especially useful (add_shuffle3)
 
 Use `have` (or supply arguments to `rw`) to help prove `add_shuffle3`.
 You don't need induction yet.
@@ -278,6 +290,8 @@ theorem add_shuffle3 (n m p : Nat) : n + (m + p) = m + (n + p) := by
   /- FILL IN HERE -/ sorry
 
 /-!
+#### Exercise: 3 stars, standard, especially useful (mul_comm)
+
 Now prove commutativity of multiplication. You will probably want to
 look for (or define and prove) a "helper" theorem to be used in the
 proof of this one. Hint: what is `n * (1 + k)`?
@@ -297,23 +311,23 @@ using only simplification and rewriting, also requires case analysis
 theorem leb_refl (n : Nat) : (n <=? n) = true := by
   /- FILL IN HERE -/ sorry
 
-theorem zero_neqb_S (n : Nat) : (0 =? .succ n) = false := by
+theorem zero_neqb_succ (n : Nat) : (0 =? .succ n) = false := by
   /- FILL IN HERE -/ sorry
 
-theorem andb_false_r (b : MyBool) : b my&& .false = .false := by
+theorem andb_false_right (b : MyBool) : b my&& .false = .false := by
   /- FILL IN HERE -/ sorry
 
-theorem S_neqb_0 (n : Nat) : (.succ n =? 0) = false := by
+theorem succ_neqb_zero (n : Nat) : (.succ n =? 0) = false := by
   /- FILL IN HERE -/ sorry
 
-theorem mult_1_l (n : Nat) : 1 * n = n := by
+theorem mul_one_left (n : Nat) : 1 * n = n := by
   /- FILL IN HERE -/ sorry
 
-theorem all3_spec : ∀ b c : MyBool,
+theorem all_three_spec (b c : MyBool) :
     orb (andb b c) (orb (negb b) (negb c)) = .true := by
   /- FILL IN HERE -/ sorry
 
-theorem mult_plus_distr_r (n m p : Nat) :
+theorem mul_add_distr_right (n m p : Nat) :
     (n + m) * p = (n * p) + (m * p) := by
   /- FILL IN HERE -/ sorry
 
@@ -329,21 +343,21 @@ theorem mult_assoc (n m p : Nat) : n * (m * p) = (n * m) * p := by
 
 Prove that the following diagram commutes:
 
-                          incr
-            Bin ----------------------> Bin
-             |                           |
-  binToNat   |                           |  binToNat
-             |                           |
-             v                           v
-            Nat ----------------------> Nat
-                           S
+                    incr
+          Bin ---------------> Bin
+          |                      |
+binToNat  |                      |  binToNat
+          |                      |
+          v                      v
+          Nat ---------------> Nat
+                      S
 
 That is, incrementing a binary number and then converting it to a
 (unary) natural number yields the same result as first converting it to
 a natural number and then incrementing.
 -/
 
-theorem binToNat_pres_incr (b : Bin) :
+theorem bin_to_nat_pres_incr (b : Bin) :
     binToNat (incr b) = 1 + (binToNat b) := by
   /- FILL IN HERE -/ sorry
 
@@ -360,7 +374,7 @@ def natToBin (n : Nat) : Bin :=
 Prove that, if we start with any `Nat`, convert it to `Bin`, and convert
 it back, we get the same `Nat` we started with.
 
-Hint: This proof should go through smoothly using `binToNat_pres_incr`
+Hint: This proof should go through smoothly using `bin_to_nat_pres_incr`
 as a lemma. If not, revisit your definitions and consider whether they
 are more complicated than necessary.
 -/
